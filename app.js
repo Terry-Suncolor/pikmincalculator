@@ -7,6 +7,7 @@ const list = document.querySelector("#mushroom-list");
 const emptyState = document.querySelector("#empty-state");
 const countLabel = document.querySelector("#count-label");
 const dialog = document.querySelector("#edit-dialog");
+const searchInput = document.querySelector("#name-search");
 
 function loadRecords() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
 function saveRecords() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
@@ -24,12 +25,15 @@ function formatDate(dateString) { return new Intl.DateTimeFormat("zh-TW", { year
 function toLocalInput(dateString) { const date = new Date(dateString), offset = date.getTimezoneOffset(); return new Date(date - offset * 60000).toISOString().slice(0,16); }
 function safe(text) { const node = document.createElement("span"); node.textContent = text; return node.innerHTML; }
 function render() {
-  list.innerHTML = records.map(r => {
+  const keyword = searchInput.value.trim().toLocaleLowerCase("zh-TW");
+  const visibleRecords = records.filter(r => r.mushroom.toLocaleLowerCase("zh-TW").includes(keyword));
+  list.innerHTML = visibleRecords.map(r => {
     const remaining = new Date(r.endAt) - Date.now();
     return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${Number(r.power).toLocaleString()}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
   }).join("");
-  emptyState.hidden = records.length > 0;
-  countLabel.textContent = `${records.length} 筆資料`;
+  emptyState.hidden = visibleRecords.length > 0;
+  emptyState.textContent = keyword ? "沒有符合此菇菇名稱的資料。" : "尚未新增蘑菇。從上方開始記錄吧！";
+  countLabel.textContent = keyword ? `顯示 ${visibleRecords.length} / ${records.length} 筆資料` : `${records.length} 筆資料`;
 }
 function showError(id, message) { const el = document.querySelector(id); el.textContent = message; el.hidden = false; }
 function clearError(id) { document.querySelector(id).hidden = true; }
@@ -54,4 +58,5 @@ document.querySelector("#edit-form").addEventListener("submit", event => {
 });
 function closeDialog() { dialog.close(); } document.querySelector("#close-dialog").addEventListener("click", closeDialog); document.querySelector("#cancel-edit").addEventListener("click", closeDialog);
 document.querySelector("#clear-finished").addEventListener("click", () => { const active = records.filter(r => new Date(r.endAt) > Date.now()); if (active.length === records.length) return; if (confirm("確定要清除所有已結束的蘑菇嗎？")) { records = active; saveRecords(); render(); } });
+searchInput.addEventListener("input", render);
 render(); setInterval(render, 1000);
