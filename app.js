@@ -26,13 +26,13 @@ function toLocalInput(dateString) { const date = new Date(dateString), offset = 
 function safe(text) { const node = document.createElement("span"); node.textContent = text; return node.innerHTML; }
 function render() {
   const keyword = searchInput.value.trim().toLocaleLowerCase("zh-TW");
-  const visibleRecords = records.filter(r => r.mushroom.toLocaleLowerCase("zh-TW").includes(keyword));
+  const visibleRecords = records.filter(r => r.user.toLocaleLowerCase("zh-TW").includes(keyword));
   list.innerHTML = visibleRecords.map(r => {
     const remaining = new Date(r.endAt) - Date.now();
     return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${Number(r.power).toLocaleString()}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
   }).join("");
   emptyState.hidden = visibleRecords.length > 0;
-  emptyState.textContent = keyword ? "沒有符合此菇菇名稱的資料。" : "尚未新增蘑菇。從上方開始記錄吧！";
+  emptyState.textContent = keyword ? "沒有符合此使用者名稱的資料。" : "尚未新增蘑菇。從上方開始記錄吧！";
   countLabel.textContent = keyword ? `顯示 ${visibleRecords.length} / ${records.length} 筆資料` : `${records.length} 筆資料`;
 }
 function showError(id, message) { const el = document.querySelector(id); el.textContent = message; el.hidden = false; }
