@@ -5,6 +5,7 @@ const LEGACY_STORAGE_KEY = "pikmin-mushroom-records-v1";
 const database = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 let records = [];
 let editingId = null;
+let sort = { field: "startAt", direction: "desc" };
 
 const form = document.querySelector("#mushroom-form");
 const list = document.querySelector("#mushroom-list");
@@ -39,6 +40,7 @@ function viewRecord(row) { return { id: row.id, user: row.user_name, mushroom: r
 function render() {
   const keyword = searchInput.value.trim().toLocaleLowerCase("zh-TW");
   const visibleRecords = records.filter(r => r.user.toLocaleLowerCase("zh-TW").includes(keyword));
+  visibleRecords.sort((a, b) => compareRecords(a, b, sort.field, sort.direction));
   list.innerHTML = visibleRecords.map(r => {
     const remaining = new Date(r.endAt) - Date.now();
     return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${Number(r.power).toLocaleString()}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
@@ -46,6 +48,21 @@ function render() {
   emptyState.hidden = visibleRecords.length > 0;
   emptyState.textContent = keyword ? "沒有符合此使用者名稱的資料。" : "尚未新增蘑菇。從上方開始記錄吧！";
   countLabel.textContent = keyword ? `顯示 ${visibleRecords.length} / ${records.length} 筆資料` : `${records.length} 筆資料`;
+  updateSortHeaders();
+}
+function compareRecords(a, b, field, direction) {
+  const value = record => field === "remaining" ? new Date(record.endAt).getTime() : record[field];
+  const first = value(a), second = value(b);
+  const comparison = typeof first === "string" ? first.localeCompare(second, "zh-TW", { numeric: true }) : Number(first) - Number(second);
+  return direction === "asc" ? comparison : -comparison;
+}
+function updateSortHeaders() {
+  document.querySelectorAll(".sort-button").forEach(button => {
+    const active = button.dataset.sort === sort.field;
+    button.classList.toggle("active", active);
+    button.querySelector("span").textContent = active ? (sort.direction === "asc" ? "↑" : "↓") : "↕";
+    button.closest("th").setAttribute("aria-sort", active ? (sort.direction === "asc" ? "ascending" : "descending") : "none");
+  });
 }
 async function loadRecords() {
   const { data, error } = await database.from(TABLE).select("*").order("start_at", { ascending: false });
@@ -100,6 +117,11 @@ document.querySelector("#clear-finished").addEventListener("click", () => {
   run(async () => { const { error } = await database.from(TABLE).delete().in("id", endedIds); if (error) throw error; }, "#form-error");
 });
 searchInput.addEventListener("input", render);
+document.querySelectorAll(".sort-button").forEach(button => button.addEventListener("click", () => {
+  const field = button.dataset.sort;
+  sort = { field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" };
+  render();
+}));
 
 async function initialise() {
   try {
