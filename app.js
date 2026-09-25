@@ -17,8 +17,29 @@ const syncStatus = document.querySelector("#sync-status");
 
 function parseDuration(value) {
   const parts = value.trim().split(":").map(Number);
-  if (parts.length !== 4 || parts.some(n => !Number.isInteger(n) || n < 0) || parts[1] > 23 || parts[2] > 59 || parts[3] > 59) return null;
+  if (parts.length < 1 || parts.length > 4 || value.trim() === "") return null;
+  while (parts.length < 4) parts.unshift(0);
+  if (parts.some(n => !Number.isInteger(n) || n < 0) || parts[1] > 23 || parts[2] > 59 || parts[3] > 59) return null;
   return (((parts[0] * 24 + parts[1]) * 60 + parts[2]) * 60 + parts[3]) * 1000;
+}
+function autoColonDuration(value) {
+  const digits = value.replace(/\D/g, "");
+  const groups = [];
+  for (let end = digits.length; end > 0 && groups.length < 3; end -= 2) groups.unshift(digits.slice(Math.max(0, end - 2), end));
+  const days = digits.slice(0, Math.max(0, digits.length - 6));
+  return (days ? [days, ...groups] : groups).join(":");
+}
+function bindDurationInput(input) {
+  input.addEventListener("input", event => {
+    if (event.inputType === "insertFromPaste" && input.value.includes(":")) return;
+    const digitsBeforeCaret = input.value.slice(0, input.selectionStart).replace(/\D/g, "").length;
+    const formatted = autoColonDuration(input.value);
+    if (formatted === input.value) return;
+    input.value = formatted;
+    let caret = 0;
+    for (let seen = 0; caret < formatted.length && seen < digitsBeforeCaret; caret++) if (/\d/.test(formatted[caret])) seen++;
+    input.setSelectionRange(caret, caret);
+  });
 }
 function formatDuration(milliseconds) {
   const total = Math.max(0, Math.floor(milliseconds / 1000));
@@ -92,9 +113,11 @@ async function run(action, errorTarget) {
   catch (error) { console.error(error); showError(errorTarget, `無法儲存資料：${error.message}`); setStatus("與共用資料庫同步失敗。", true); }
 }
 
+bindDurationInput(document.querySelector("#duration"));
+bindDurationInput(document.querySelector("#edit-duration"));
 form.addEventListener("submit", event => {
   event.preventDefault(); const values = Object.fromEntries(new FormData(form));
-  if (!parseDuration(values.duration)) return showError("#form-error", "請以「日:時:分:秒」填寫時間，例如：1:02:30:00。");
+  if (!parseDuration(values.duration)) return showError("#form-error", "請輸入有效時間（日:時:分:秒），例如輸入 1023000 會自動變成 1:02:30:00。");
   run(async () => { const { error } = await database.from(TABLE).insert(databaseRecord(values, new Date())); if (error) throw error; form.reset(); }, "#form-error");
 });
 list.addEventListener("click", event => {
@@ -105,7 +128,7 @@ list.addEventListener("click", event => {
 });
 document.querySelector("#edit-form").addEventListener("submit", event => {
   event.preventDefault(); const values = { user: document.querySelector("#edit-user").value, mushroom: document.querySelector("#edit-mushroom").value, power: document.querySelector("#edit-power").value, duration: document.querySelector("#edit-duration").value }; const startAt = document.querySelector("#edit-start").value;
-  if (!parseDuration(values.duration)) return showError("#edit-error", "請以「日:時:分:秒」填寫時間，例如：1:02:30:00。");
+  if (!parseDuration(values.duration)) return showError("#edit-error", "請輸入有效時間（日:時:分:秒），例如輸入 1023000 會自動變成 1:02:30:00。");
   run(async () => { const { error } = await database.from(TABLE).update(databaseRecord(values, startAt, editingId)).eq("id", editingId); if (error) throw error; dialog.close(); }, "#edit-error");
 });
 function closeDialog() { dialog.close(); }
