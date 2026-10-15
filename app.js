@@ -1,11 +1,14 @@
 const SUPABASE_URL = "https://lvefqtlfnbysohzvprvn.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_It_-z18bGycpgNMqLgAUcg_P_K9wnIy";
 const TABLE = "mushrooms";
+const PEOPLE_TABLE = "common_people";
 const LEGACY_STORAGE_KEY = "pikmin-mushroom-records-v1";
 const database = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 let records = [];
+let commonUsers = [];
 let editingId = null;
 let sort = { field: "startAt", direction: "desc" };
+let showingHistory = false;
 
 const form = document.querySelector("#mushroom-form");
 const list = document.querySelector("#mushroom-list");
@@ -14,32 +17,20 @@ const countLabel = document.querySelector("#count-label");
 const dialog = document.querySelector("#edit-dialog");
 const searchInput = document.querySelector("#name-search");
 const syncStatus = document.querySelector("#sync-status");
+const listTitle = document.querySelector("#list-title");
+const historyToggle = document.querySelector("#history-toggle");
+const commonUserSelect = document.querySelector("#common-user");
+const userInput = document.querySelector("#user");
+const mushroomSizeSelect = document.querySelector("#mushroom-size");
+const mushroomTypeSelect = document.querySelector("#mushroom-type");
+const mushroomInput = document.querySelector("#mushroom");
+const targetTimeInput = document.querySelector("#target-time");
+const targetCountdown = document.querySelector("#target-countdown");
 
 function parseDuration(value) {
   const parts = value.trim().split(":").map(Number);
-  if (parts.length < 1 || parts.length > 4 || value.trim() === "") return null;
-  while (parts.length < 4) parts.unshift(0);
-  if (parts.some(n => !Number.isInteger(n) || n < 0) || parts[1] > 23 || parts[2] > 59 || parts[3] > 59) return null;
+  if (parts.length !== 4 || parts.some(n => !Number.isInteger(n) || n < 0) || parts[1] > 23 || parts[2] > 59 || parts[3] > 59) return null;
   return (((parts[0] * 24 + parts[1]) * 60 + parts[2]) * 60 + parts[3]) * 1000;
-}
-function autoColonDuration(value) {
-  const digits = value.replace(/\D/g, "");
-  const groups = [];
-  for (let end = digits.length; end > 0 && groups.length < 3; end -= 2) groups.unshift(digits.slice(Math.max(0, end - 2), end));
-  const days = digits.slice(0, Math.max(0, digits.length - 6));
-  return (days ? [days, ...groups] : groups).join(":");
-}
-function bindDurationInput(input) {
-  input.addEventListener("input", event => {
-    if (event.inputType === "insertFromPaste" && input.value.includes(":")) return;
-    const digitsBeforeCaret = input.value.slice(0, input.selectionStart).replace(/\D/g, "").length;
-    const formatted = autoColonDuration(input.value);
-    if (formatted === input.value) return;
-    input.value = formatted;
-    let caret = 0;
-    for (let seen = 0; caret < formatted.length && seen < digitsBeforeCaret; caret++) if (/\d/.test(formatted[caret])) seen++;
-    input.setSelectionRange(caret, caret);
-  });
 }
 function formatDuration(milliseconds) {
   const total = Math.max(0, Math.floor(milliseconds / 1000));
@@ -56,19 +47,35 @@ function databaseRecord(values, startAt, id = crypto.randomUUID()) {
   const duration = parseDuration(values.duration);
   return { id, user_name: values.user.trim(), mushroom: values.mushroom.trim(), power: Number(values.power), start_at: new Date(startAt).toISOString(), end_at: new Date(new Date(startAt).getTime() + duration).toISOString() };
 }
-function viewRecord(row) { return { id: row.id, user: row.user_name, mushroom: row.mushroom, power: row.power, startAt: row.start_at, endAt: row.end_at }; }
+function viewRecord(row) { return { id: row.id, user: row.user_name, mushroom: row.mushroom, power: row.power, startAt: row.start_at, endAt: row.end_at, isArchived: row.is_archived }; }
+function updateCommonUsers() {
+  const selected = commonUserSelect.value;
+  commonUserSelect.innerHTML = '<option value="">請選擇使用者</option>' + commonUsers.map(user => `<option value="${safe(user)}">${safe(user)}</option>`).join("");
+  commonUserSelect.value = commonUsers.includes(selected) ? selected : "";
+}
+function updateTargetCountdown() {
+  if (!targetTimeInput.value) { targetCountdown.textContent = "請輸入目標時間"; return; }
+  const difference = new Date(targetTimeInput.value).getTime() - Date.now();
+  const totalMinutes = Math.floor(Math.abs(difference) / 60000);
+  const days = Math.floor(totalMinutes / 1440), hours = Math.floor(totalMinutes % 1440 / 60), minutes = totalMinutes % 60;
+  targetCountdown.textContent = difference >= 0 ? `距離目標時間還有 ${days} 天 ${hours} 小時 ${minutes} 分鐘` : `目標時間已過 ${days} 天 ${hours} 小時 ${minutes} 分鐘`;
+}
 
 function render() {
   const keyword = searchInput.value.trim().toLocaleLowerCase("zh-TW");
-  const visibleRecords = records.filter(r => r.user.toLocaleLowerCase("zh-TW").includes(keyword));
+  const currentView = records.filter(record => showingHistory ? record.isArchived : !record.isArchived);
+  const visibleRecords = currentView.filter(r => r.user.toLocaleLowerCase("zh-TW").includes(keyword));
   visibleRecords.sort((a, b) => compareRecords(a, b, sort.field, sort.direction));
   list.innerHTML = visibleRecords.map(r => {
     const remaining = new Date(r.endAt) - Date.now();
     return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${Number(r.power).toLocaleString()}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
   }).join("");
   emptyState.hidden = visibleRecords.length > 0;
-  emptyState.textContent = keyword ? "沒有符合此使用者名稱的資料。" : "尚未新增蘑菇。從上方開始記錄吧！";
-  countLabel.textContent = keyword ? `顯示 ${visibleRecords.length} / ${records.length} 筆資料` : `${records.length} 筆資料`;
+  emptyState.textContent = keyword ? "沒有符合此使用者名稱的資料。" : (showingHistory ? "目前沒有歷史資料。" : "尚未新增蘑菇。從上方開始記錄吧！");
+  countLabel.textContent = keyword ? `顯示 ${visibleRecords.length} / ${currentView.length} 筆資料` : `${currentView.length} 筆資料`;
+  listTitle.textContent = showingHistory ? "歷史資料" : "進行中的蘑菇";
+  historyToggle.textContent = showingHistory ? "返回進行中" : "查看歷史資料";
+  document.querySelector("#clear-finished").hidden = showingHistory;
   updateSortHeaders();
 }
 function compareRecords(a, b, field, direction) {
@@ -90,6 +97,12 @@ async function loadRecords() {
   if (error) throw error;
   records = data.map(viewRecord); render();
 }
+async function loadCommonUsers() {
+  const { data, error } = await database.from(PEOPLE_TABLE).select("user_name").order("user_name", { ascending: true });
+  if (error) throw error;
+  commonUsers = data.map(person => person.user_name);
+  updateCommonUsers();
+}
 function loadLegacyRecords() {
   try { const value = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)); return Array.isArray(value) ? value : []; } catch { return []; }
 }
@@ -109,16 +122,20 @@ async function migrateLegacyRecords() {
   setStatus("已安全轉移此瀏覽器的舊資料。正在同步共用清單…");
 }
 async function run(action, errorTarget) {
-  try { await action(); clearError(errorTarget); await loadRecords(); setStatus("已與共用資料庫同步。"); }
+  try { await action(); clearError(errorTarget); await Promise.all([loadRecords(), loadCommonUsers()]); setStatus("已與共用資料庫同步。"); }
   catch (error) { console.error(error); showError(errorTarget, `無法儲存資料：${error.message}`); setStatus("與共用資料庫同步失敗。", true); }
 }
 
-bindDurationInput(document.querySelector("#duration"));
-bindDurationInput(document.querySelector("#edit-duration"));
 form.addEventListener("submit", event => {
   event.preventDefault(); const values = Object.fromEntries(new FormData(form));
-  if (!parseDuration(values.duration)) return showError("#form-error", "請輸入有效時間（日:時:分:秒），例如輸入 1023000 會自動變成 1:02:30:00。");
-  run(async () => { const { error } = await database.from(TABLE).insert(databaseRecord(values, new Date())); if (error) throw error; form.reset(); }, "#form-error");
+  if (!parseDuration(values.duration)) return showError("#form-error", "請以「日:時:分:秒」填寫時間，例如：1:02:30:00。");
+  run(async () => {
+    const { error: personError } = await database.from(PEOPLE_TABLE).upsert({ user_name: values.user.trim() }, { onConflict: "user_name", ignoreDuplicates: true });
+    if (personError) throw personError;
+    const { error } = await database.from(TABLE).insert(databaseRecord(values, new Date()));
+    if (error) throw error;
+    form.reset(); commonUserSelect.value = "";
+  }, "#form-error");
 });
 list.addEventListener("click", event => {
   const button = event.target.closest("button[data-action]"); if (!button) return;
@@ -128,18 +145,27 @@ list.addEventListener("click", event => {
 });
 document.querySelector("#edit-form").addEventListener("submit", event => {
   event.preventDefault(); const values = { user: document.querySelector("#edit-user").value, mushroom: document.querySelector("#edit-mushroom").value, power: document.querySelector("#edit-power").value, duration: document.querySelector("#edit-duration").value }; const startAt = document.querySelector("#edit-start").value;
-  if (!parseDuration(values.duration)) return showError("#edit-error", "請輸入有效時間（日:時:分:秒），例如輸入 1023000 會自動變成 1:02:30:00。");
+  if (!parseDuration(values.duration)) return showError("#edit-error", "請以「日:時:分:秒」填寫時間，例如：1:02:30:00。");
   run(async () => { const { error } = await database.from(TABLE).update(databaseRecord(values, startAt, editingId)).eq("id", editingId); if (error) throw error; dialog.close(); }, "#edit-error");
 });
 function closeDialog() { dialog.close(); }
 document.querySelector("#close-dialog").addEventListener("click", closeDialog);
 document.querySelector("#cancel-edit").addEventListener("click", closeDialog);
 document.querySelector("#clear-finished").addEventListener("click", () => {
-  const endedIds = records.filter(r => new Date(r.endAt) <= Date.now()).map(r => r.id);
-  if (!endedIds.length || !confirm("確定要清除所有已結束的蘑菇嗎？")) return;
-  run(async () => { const { error } = await database.from(TABLE).delete().in("id", endedIds); if (error) throw error; }, "#form-error");
+  const endedIds = records.filter(r => !r.isArchived && new Date(r.endAt) <= Date.now()).map(r => r.id);
+  if (!endedIds.length || !confirm("確定要將所有已結束的蘑菇移到歷史資料嗎？")) return;
+  run(async () => { const { error } = await database.from(TABLE).update({ is_archived: true }).in("id", endedIds); if (error) throw error; }, "#form-error");
 });
 searchInput.addEventListener("input", render);
+historyToggle.addEventListener("click", () => { showingHistory = !showingHistory; render(); });
+commonUserSelect.addEventListener("change", () => { if (commonUserSelect.value) userInput.value = commonUserSelect.value; });
+function applyMushroomSelection() {
+  const selection = `${mushroomSizeSelect.value}${mushroomTypeSelect.value}`;
+  if (selection) mushroomInput.value = selection;
+}
+mushroomSizeSelect.addEventListener("change", applyMushroomSelection);
+mushroomTypeSelect.addEventListener("change", applyMushroomSelection);
+targetTimeInput.addEventListener("input", updateTargetCountdown);
 document.querySelectorAll(".sort-button").forEach(button => button.addEventListener("click", () => {
   const field = button.dataset.sort;
   sort = { field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" };
@@ -149,9 +175,10 @@ document.querySelectorAll(".sort-button").forEach(button => button.addEventListe
 async function initialise() {
   try {
     await migrateLegacyRecords();
-    await loadRecords();
+    await Promise.all([loadRecords(), loadCommonUsers()]);
     setStatus("已與共用資料庫同步。");
     database.channel("mushrooms-live").on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => loadRecords().catch(console.error)).subscribe();
+    database.channel("common-people-live").on("postgres_changes", { event: "*", schema: "public", table: PEOPLE_TABLE }, () => loadCommonUsers().catch(console.error)).subscribe();
   } catch (error) { console.error(error); setStatus(`無法連線至共用資料庫：${error.message}`, true); }
 }
-render(); setInterval(render, 1000); initialise();
+render(); updateTargetCountdown(); setInterval(() => { render(); updateTargetCountdown(); }, 1000); initialise();

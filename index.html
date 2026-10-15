@@ -14,16 +14,30 @@
         <p class="subtitle">輸入目前正在挑戰的蘑菇，完成時間會自動計算並即時倒數。</p>
       </header>
 
+      <section class="card target-card" aria-labelledby="target-title">
+        <div class="section-heading">
+          <h2 id="target-title">目標時間倒數</h2>
+          <p>設定目標年月日時分，查看距離目標還有多久。</p>
+        </div>
+        <div class="target-tools">
+          <label>目標時間（年月日時分）<input id="target-time" type="datetime-local" /></label>
+          <p id="target-countdown" class="target-countdown" aria-live="polite">請輸入目標時間</p>
+        </div>
+      </section>
+
       <section class="card" aria-labelledby="add-title">
         <div class="section-heading">
           <h2 id="add-title">新增挑戰</h2>
           <p>新增當下會自動記為開始時間。</p>
         </div>
         <form id="mushroom-form" class="entry-form">
+          <label>常用人員<select id="common-user" name="common-user"><option value="">請選擇使用者</option></select></label>
           <label>使用者<input id="user" name="user" maxlength="40" required placeholder="例如：小明" /></label>
+          <label>菇菇尺寸<select id="mushroom-size" name="mushroom-size"><option value="">請選擇尺寸</option><option value="小">小</option><option value="一般">一般</option><option value="大">大</option><option value="巨大">巨大</option></select></label>
+          <label>菇菇種類<select id="mushroom-type" name="mushroom-type"><option value="">請選擇種類</option><option value="活動菇">活動菇</option><option value="紅菇">紅菇</option><option value="黃菇">黃菇</option><option value="藍菇">藍菇</option><option value="紫菇">紫菇</option><option value="白菇">白菇</option><option value="粉菇">粉菇</option><option value="灰菇">灰菇</option><option value="冰藍菇">冰藍菇</option><option value="火蘑菇">火蘑菇</option><option value="水蘑菇">水蘑菇</option><option value="電蘑菇">電蘑菇</option><option value="毒蘑菇">毒蘑菇</option><option value="水晶蘑菇">水晶蘑菇</option></select></label>
           <label>菇菇名稱<input id="mushroom" name="mushroom" maxlength="60" required placeholder="例如：巨大紅菇" /></label>
           <label>總戰力<input id="power" name="power" type="number" min="0" step="1" required placeholder="例如：12500" /></label>
-          <label>剩餘時間（日:時:分:秒）<input id="duration" name="duration" required inputmode="numeric" pattern="\d+(:\d{1,2}){0,3}" placeholder="輸入數字，如 1023000 → 1:02:30:00" title="直接輸入數字即可，冒號會自動補上，例如 1023000 → 1:02:30:00" /></label>
+          <label>剩餘時間（日:時:分:秒）<input id="duration" name="duration" required inputmode="numeric" pattern="\d+:\d{1,2}:\d{1,2}:\d{1,2}" placeholder="例如：1:02:30:00" title="格式為 日:時:分:秒，例如 1:02:30:00" /></label>
           <button type="submit" class="primary">新增蘑菇</button>
         </form>
         <p id="form-error" class="form-error" role="alert" hidden></p>
@@ -32,7 +46,7 @@
       <section class="card list-card" aria-labelledby="list-title">
         <div class="section-heading list-heading">
           <div><h2 id="list-title">進行中的蘑菇</h2><p id="count-label">0 筆資料</p></div>
-          <div class="list-tools"><label class="search-label">搜尋使用者<input id="name-search" type="search" placeholder="輸入使用者名稱" /></label><button id="clear-finished" type="button" class="secondary">清除已結束</button></div>
+          <div class="list-tools"><label class="search-label">搜尋使用者<input id="name-search" type="search" placeholder="輸入使用者名稱" /></label><button id="history-toggle" type="button" class="secondary">查看歷史資料</button><button id="clear-finished" type="button" class="secondary">清除已結束</button></div>
         </div>
         <div class="table-wrap">
           <table>
@@ -52,7 +66,7 @@
         <label>菇菇名稱<input id="edit-mushroom" required maxlength="60" /></label>
         <label>總戰力<input id="edit-power" type="number" min="0" step="1" required /></label>
         <label>開始時間<input id="edit-start" type="datetime-local" required /></label>
-        <label>剩餘時間（日:時:分:秒）<input id="edit-duration" required inputmode="numeric" placeholder="0:01:00:00" /></label>
+        <label>剩餘時間（日:時:分:秒）<input id="edit-duration" required placeholder="0:01:00:00" /></label>
         <p id="edit-error" class="form-error" role="alert" hidden></p>
         <div class="dialog-actions"><button type="button" id="cancel-edit" class="secondary">取消</button><button class="primary">儲存修改</button></div>
       </form>
