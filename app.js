@@ -32,6 +32,15 @@ function parseDuration(value) {
   if (parts.length !== 4 || parts.some(n => !Number.isInteger(n) || n < 0) || parts[1] > 23 || parts[2] > 59 || parts[3] > 59) return null;
   return (((parts[0] * 24 + parts[1]) * 60 + parts[2]) * 60 + parts[3]) * 1000;
 }
+function formatDurationInput(value) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length < 6) return value;
+  const days = String(Number(digits.slice(0, -6) || "0"));
+  const hours = digits.slice(-6, -4);
+  const minutes = digits.slice(-4, -2);
+  const seconds = digits.slice(-2);
+  return `${days}:${hours}:${minutes}:${seconds}`;
+}
 function formatDuration(milliseconds) {
   const total = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(total / 86400), hours = Math.floor(total % 86400 / 3600), mins = Math.floor(total % 3600 / 60), secs = total % 60;
@@ -166,6 +175,10 @@ function applyMushroomSelection() {
 mushroomSizeSelect.addEventListener("change", applyMushroomSelection);
 mushroomTypeSelect.addEventListener("change", applyMushroomSelection);
 targetTimeInput.addEventListener("input", updateTargetCountdown);
+document.querySelectorAll("#duration, #edit-duration").forEach(input => input.addEventListener("input", () => {
+  const formatted = formatDurationInput(input.value);
+  if (formatted !== input.value) input.value = formatted;
+}));
 document.querySelectorAll(".sort-button").forEach(button => button.addEventListener("click", () => {
   const field = button.dataset.sort;
   sort = { field, direction: sort.field === field && sort.direction === "asc" ? "desc" : "asc" };
