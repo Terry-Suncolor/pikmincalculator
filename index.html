@@ -38,6 +38,7 @@
           <label>菇菇名稱<input id="mushroom" name="mushroom" maxlength="60" required placeholder="例如：巨大紅菇" /></label>
           <label>總戰力<input id="power" name="power" type="number" min="0" step="1" required placeholder="例如：12500" /></label>
           <label>剩餘時間（日:時:分:秒）<input id="duration" name="duration" required inputmode="numeric" pattern="\d+:\d{1,2}:\d{1,2}:\d{1,2}" placeholder="例如：1:02:30:00" title="格式為 日:時:分:秒，例如 1:02:30:00" /></label>
+          <label>預計完成時間（年月日時分秒）<output id="completion-preview" class="completion-preview" aria-live="polite">請輸入剩餘時間</output></label>
           <button type="submit" class="primary">新增蘑菇</button>
         </form>
         <p id="form-error" class="form-error" role="alert" hidden></p>
@@ -75,3 +76,4 @@
     <script src="app.js"></script>
   </body>
 </html>
+
