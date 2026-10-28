@@ -24,6 +24,8 @@ const userInput = document.querySelector("#user");
 const mushroomSizeSelect = document.querySelector("#mushroom-size");
 const mushroomTypeSelect = document.querySelector("#mushroom-type");
 const mushroomInput = document.querySelector("#mushroom");
+const durationInput = document.querySelector("#duration");
+const completionPreview = document.querySelector("#completion-preview");
 const targetTimeInput = document.querySelector("#target-time");
 const targetCountdown = document.querySelector("#target-countdown");
 
@@ -68,6 +70,16 @@ function updateTargetCountdown() {
   const totalMinutes = Math.floor(Math.abs(difference) / 60000);
   const days = Math.floor(totalMinutes / 1440), hours = Math.floor(totalMinutes % 1440 / 60), minutes = totalMinutes % 60;
   targetCountdown.textContent = difference >= 0 ? `距離目標時間還有 ${days} 天 ${hours} 小時 ${minutes} 分鐘` : `目標時間已過 ${days} 天 ${hours} 小時 ${minutes} 分鐘`;
+}
+function updateCompletionPreview() {
+  const duration = parseDuration(durationInput.value);
+  if (duration === null) {
+    completionPreview.textContent = durationInput.value ? "請輸入有效的剩餘時間" : "請輸入剩餘時間";
+    completionPreview.classList.add("empty");
+    return;
+  }
+  completionPreview.textContent = formatDate(new Date(Date.now() + duration).toISOString());
+  completionPreview.classList.remove("empty");
 }
 
 function render() {
@@ -143,7 +155,7 @@ form.addEventListener("submit", event => {
     if (personError) throw personError;
     const { error } = await database.from(TABLE).insert(databaseRecord(values, new Date()));
     if (error) throw error;
-    form.reset(); commonUserSelect.value = "";
+    form.reset(); commonUserSelect.value = ""; updateCompletionPreview();
   }, "#form-error");
 });
 list.addEventListener("click", event => {
@@ -178,6 +190,7 @@ targetTimeInput.addEventListener("input", updateTargetCountdown);
 document.querySelectorAll("#duration, #edit-duration").forEach(input => input.addEventListener("input", () => {
   const formatted = formatDurationInput(input.value);
   if (formatted !== input.value) input.value = formatted;
+  if (input === durationInput) updateCompletionPreview();
 }));
 document.querySelectorAll(".sort-button").forEach(button => button.addEventListener("click", () => {
   const field = button.dataset.sort;
@@ -194,4 +207,5 @@ async function initialise() {
     database.channel("common-people-live").on("postgres_changes", { event: "*", schema: "public", table: PEOPLE_TABLE }, () => loadCommonUsers().catch(console.error)).subscribe();
   } catch (error) { console.error(error); setStatus(`無法連線至共用資料庫：${error.message}`, true); }
 }
-render(); updateTargetCountdown(); setInterval(() => { render(); updateTargetCountdown(); }, 1000); initialise();
+render(); updateTargetCountdown(); updateCompletionPreview(); setInterval(() => { render(); updateTargetCountdown(); }, 1000); initialise();
+
