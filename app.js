@@ -56,9 +56,9 @@ function showError(id, message) { const el = document.querySelector(id); el.text
 function clearError(id) { document.querySelector(id).hidden = true; }
 function databaseRecord(values, startAt, id = crypto.randomUUID()) {
   const duration = parseDuration(values.duration);
-  return { id, user_name: values.user.trim(), mushroom: values.mushroom.trim(), power: Number(values.power), start_at: new Date(startAt).toISOString(), end_at: new Date(new Date(startAt).getTime() + duration).toISOString() };
+  return { id, user_name: values.user.trim(), mushroom: values.mushroom.trim(), power: 0, start_at: new Date(startAt).toISOString(), end_at: new Date(new Date(startAt).getTime() + duration).toISOString() };
 }
-function viewRecord(row) { return { id: row.id, user: row.user_name, mushroom: row.mushroom, power: row.power, startAt: row.start_at, endAt: row.end_at, isArchived: row.is_archived }; }
+function viewRecord(row) { return { id: row.id, user: row.user_name, mushroom: row.mushroom, startAt: row.start_at, endAt: row.end_at, isArchived: row.is_archived }; }
 function updateCommonUsers() {
   const selected = commonUserSelect.value;
   commonUserSelect.innerHTML = '<option value="">請選擇使用者</option>' + commonUsers.map(user => `<option value="${safe(user)}">${safe(user)}</option>`).join("");
@@ -89,7 +89,7 @@ function render() {
   visibleRecords.sort((a, b) => compareRecords(a, b, sort.field, sort.direction));
   list.innerHTML = visibleRecords.map(r => {
     const remaining = new Date(r.endAt) - Date.now();
-    return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${Number(r.power).toLocaleString()}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
+    return `<tr><td><div class="actions"><button class="secondary mini-button" data-action="edit" data-id="${r.id}">修改</button><button class="delete mini-button" data-action="delete" data-id="${r.id}">刪除</button></div></td><td>${safe(r.user)}</td><td>${safe(r.mushroom)}</td><td>${formatDate(r.startAt)}</td><td class="${remaining <= 0 ? "finished" : ""}">${remaining <= 0 ? "已結束" : formatDuration(remaining)}</td><td>${formatDate(r.endAt)}</td></tr>`;
   }).join("");
   emptyState.hidden = visibleRecords.length > 0;
   emptyState.textContent = keyword ? "沒有符合此使用者名稱的資料。" : (showingHistory ? "目前沒有歷史資料。" : "尚未新增蘑菇。從上方開始記錄吧！");
@@ -134,7 +134,7 @@ async function migrateLegacyRecords() {
   const { data: existing, error: checkError } = await database.from(TABLE).select("id").in("id", legacy.map(r => r.id));
   if (checkError) throw checkError;
   const existingIds = new Set(existing.map(r => r.id));
-  const missing = legacy.filter(r => !existingIds.has(r.id)).map(r => ({ id: r.id, user_name: r.user, mushroom: r.mushroom, power: Number(r.power), start_at: r.startAt, end_at: r.endAt }));
+  const missing = legacy.filter(r => !existingIds.has(r.id)).map(r => ({ id: r.id, user_name: r.user, mushroom: r.mushroom, power: Number(r.power) || 0, start_at: r.startAt, end_at: r.endAt }));
   if (missing.length) {
     const { error: insertError } = await database.from(TABLE).insert(missing);
     if (insertError) throw insertError;
@@ -162,10 +162,10 @@ list.addEventListener("click", event => {
   const button = event.target.closest("button[data-action]"); if (!button) return;
   const record = records.find(r => r.id === button.dataset.id); if (!record) return;
   if (button.dataset.action === "delete") { if (confirm(`確定要刪除「${record.mushroom}」嗎？`)) run(async () => { const { error } = await database.from(TABLE).delete().eq("id", record.id); if (error) throw error; }, "#form-error"); return; }
-  editingId = record.id; document.querySelector("#edit-user").value = record.user; document.querySelector("#edit-mushroom").value = record.mushroom; document.querySelector("#edit-power").value = record.power; document.querySelector("#edit-start").value = toLocalInput(record.startAt); document.querySelector("#edit-duration").value = formatDuration(new Date(record.endAt) - new Date(record.startAt)); clearError("#edit-error"); dialog.showModal();
+  editingId = record.id; document.querySelector("#edit-user").value = record.user; document.querySelector("#edit-mushroom").value = record.mushroom; document.querySelector("#edit-start").value = toLocalInput(record.startAt); document.querySelector("#edit-duration").value = formatDuration(new Date(record.endAt) - new Date(record.startAt)); clearError("#edit-error"); dialog.showModal();
 });
 document.querySelector("#edit-form").addEventListener("submit", event => {
-  event.preventDefault(); const values = { user: document.querySelector("#edit-user").value, mushroom: document.querySelector("#edit-mushroom").value, power: document.querySelector("#edit-power").value, duration: document.querySelector("#edit-duration").value }; const startAt = document.querySelector("#edit-start").value;
+  event.preventDefault(); const values = { user: document.querySelector("#edit-user").value, mushroom: document.querySelector("#edit-mushroom").value, duration: document.querySelector("#edit-duration").value }; const startAt = document.querySelector("#edit-start").value;
   if (!parseDuration(values.duration)) return showError("#edit-error", "請以「日:時:分:秒」填寫時間，例如：1:02:30:00。");
   run(async () => { const { error } = await database.from(TABLE).update(databaseRecord(values, startAt, editingId)).eq("id", editingId); if (error) throw error; dialog.close(); }, "#edit-error");
 });
